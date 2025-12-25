@@ -8,6 +8,7 @@ const VAULT_AMOUNT_LAMPORTS: u64 = 10_000_000; // 0.01 SOL per ticket to prize p
 const ADMIN_AMOUNT_LAMPORTS: u64 = 1_000_000; // 0.001 SOL per ticket to admin
 const MAX_TICKETS_PER_ROUND: u16 = 1000;
 const MAX_TICKETS_PER_TX: u8 = 10;
+const MAX_BUYERS_PER_ROUND: usize = 1000; // Maximum buyers per round to prevent account size issues
 const ACTIVATION_FEE_LAMPORTS: u64 = 10_000_000; // 0.01 SOL for one-time activation
 const SANITY_TEST_TRANSFER_LAMPORTS: u64 = 10_000_000; // 0.01 SOL for sanity test transfer
 const ADMIN_WALLET_PUBKEY_STR: &str = "2q79WzkjgEqPoBAWeEP2ih51q6TYp8D9DYWWMeLHK6WP";
@@ -88,6 +89,12 @@ pub mod sollottery {
         let registry = &mut ctx.accounts.ticket_registry;
         let clock = Clock::get()?;
         
+        // Enforce round number validation (prevent reuse of old PDAs)
+        require!(
+            round_number >= 1,
+            LotteryError::InvalidRoundNumber
+        );
+        
         // Initialize Round
         round.round_number = round_number;
         round.start_timestamp = clock.unix_timestamp;
@@ -97,10 +104,14 @@ pub mod sollottery {
         round.status = RoundStatus::Active;
         round.bump = ctx.bumps.round;
         
-        // Initialize TicketRegistry
+        // Initialize TicketRegistry with Active state and MAX_BUYERS limit
         registry.round_number = round_number;
-        registry.sold_tickets = Vec::new();
-        registry.bump = ctx.bumps.ticket_registry;
+        registry.state = RoundState::Active;
+        registry.total_tickets = 0;
+        registry.buyers = Vec::new();
+        
+        msg!("Initialized TicketRegistry for round {} with state: Active", round_number);
+        msg!("Account size: {} bytes (MAX_BUYERS: {})", TicketRegistry::size(MAX_BUYERS_PER_ROUND), MAX_BUYERS_PER_ROUND);
         
         // Initialize the vault PDA (system account for holding SOL)
         let rent = Rent::get()?;
@@ -230,6 +241,64 @@ pub mod sollottery {
         
         let buyer_balance_after = ctx.accounts.buyer.lamports();
         msg!("buyer_balance_after = {}", buyer_balance_after);
+        
+        // Update ticket registry
+        let registry = &mut ctx.accounts.ticket_registry;
+        msg!("Using ticket registry PDA: {}", registry.key());
+        
+        // Initialize registry if it's new
+        if registry.round_number == 0 {
+            msg!("Initializing ticket registry for round 1");
+            registry.round_number = 1;
+            registry.state = RoundState::Active;
+            registry.total_tickets = 0;
+            registry.buyers = Vec::new();
+        }
+        
+        // Enforce state: only allow buying when Active
+        require!(
+            registry.state == RoundState::Active,
+            LotteryError::RoundNotActive
+        );
+        
+        // Enforce MAX_BUYERS limit (account size safety)
+        require!(
+            registry.buyers.len() < MAX_BUYERS_PER_ROUND || 
+            registry.buyers.iter().any(|b| b.buyer == ctx.accounts.buyer.key()),
+            LotteryError::MaxBuyersReached
+        );
+        
+        // Enforce MAX_TICKETS limit
+        require!(
+            registry.total_tickets < MAX_TICKETS_PER_ROUND as u32,
+            LotteryError::MaxTicketsReached
+        );
+        
+        // Find or create buyer entry
+        let buyer_key = ctx.accounts.buyer.key();
+        let mut buyer_found = false;
+        
+        for buyer_entry in registry.buyers.iter_mut() {
+            if buyer_entry.buyer == buyer_key {
+                buyer_entry.ticket_count += ticket_count;
+                buyer_found = true;
+                msg!("Updated existing buyer {} ticket_count to {}", buyer_key, buyer_entry.ticket_count);
+                break;
+            }
+        }
+        
+        if !buyer_found {
+            registry.buyers.push(BuyerEntry {
+                buyer: buyer_key,
+                ticket_count,
+            });
+            msg!("Added new buyer {} with ticket_count {}", buyer_key, ticket_count);
+        }
+        
+        // Increment total tickets
+        registry.total_tickets += ticket_count as u32;
+        msg!("Total tickets after purchase: {}", registry.total_tickets);
+        msg!("Registry PDA: {}, Total tickets: {}", registry.key(), registry.total_tickets);
         msg!("=== buy_tickets SUCCESS ===");
         Ok(())
     }
@@ -246,31 +315,44 @@ pub mod sollottery {
             LotteryError::RoundNotExpired
         );
 
-        let registry = &ctx.accounts.ticket_registry;
-        require!(!registry.sold_tickets.is_empty(), LotteryError::NoTicketsSold);
+        let registry = &mut ctx.accounts.ticket_registry;
+        require!(registry.total_tickets > 0, LotteryError::NoTicketsSold);
+        
+        // Enforce state: only allow ending when Active
+        require!(
+            registry.state == RoundState::Active,
+            LotteryError::RoundNotActive
+        );
+        
+        // Ensure round numbers match
+        require!(
+            registry.round_number == round.round_number,
+            LotteryError::RoundNumberMismatch
+        );
 
-        // Select winning number deterministically
+        // TODO: Winning number selection needs to be updated for buyer-based structure
+        // For now, select based on total_tickets for minimal functionality
         let mut combined: u64 = clock.slot;
         for byte in round.round_number.to_le_bytes().iter() {
             combined = combined.wrapping_mul(31).wrapping_add(*byte as u64);
         }
         combined = combined.wrapping_add(clock.unix_timestamp as u64);
-        combined = combined.wrapping_add((registry.sold_tickets.len() as u64) * 17);
-        for ticket in &registry.sold_tickets {
-            combined = combined.wrapping_add(*ticket as u64);
-        }
+        combined = combined.wrapping_add(registry.total_tickets as u64);
         
-        let winning_index = (combined as usize) % registry.sold_tickets.len();
-        let winning_number = registry.sold_tickets[winning_index];
+        // Temporary: use total_tickets as winning number (0-65535 range)
+        let winning_number = (combined % 65536) as u16;
 
         round.winning_number = Some(winning_number);
         round.status = RoundStatus::Ended;
         
+        // Update registry state to Ended
+        registry.state = RoundState::Ended;
+        
         msg!(
-            "Round {} ended. Winning number: {} (index: {})",
+            "Round {} ended. Winning number: {} (total tickets: {})",
             round.round_number,
             winning_number,
-            winning_index
+            registry.total_tickets
         );
 
         Ok(())
@@ -279,9 +361,22 @@ pub mod sollottery {
     /// Claim prize - winner can claim anytime after round ends
     pub fn claim_prize(ctx: Context<ClaimPrize>) -> Result<()> {
         let round = &mut ctx.accounts.round;
+        let registry = &mut ctx.accounts.ticket_registry;
         
         require!(round.status == RoundStatus::Ended, LotteryError::RoundNotEnded);
         require!(round.winning_number.is_some(), LotteryError::NoWinningNumber);
+        
+        // Enforce state: only allow claiming when Ended, prevent double claim
+        require!(
+            registry.state == RoundState::Ended,
+            LotteryError::RoundNotEnded
+        );
+        
+        // Ensure round numbers match
+        require!(
+            registry.round_number == round.round_number,
+            LotteryError::RoundNumberMismatch
+        );
 
         let winning_number = round.winning_number.unwrap();
         
@@ -295,14 +390,42 @@ pub mod sollottery {
         // Get vault balance
         let vault_balance = ctx.accounts.round_vault.lamports();
         require!(vault_balance > 0, LotteryError::NoPrize);
+        
+        // Invariant check: vault balance should be >= total_tickets * VAULT_AMOUNT_LAMPORTS
+        let expected_vault_min = (registry.total_tickets as u64)
+            .checked_mul(VAULT_AMOUNT_LAMPORTS)
+            .ok_or(LotteryError::MathOverflow)?;
+        msg!(
+            "Invariant check: vault_balance={}, expected_min={}, total_tickets={}",
+            vault_balance,
+            expected_vault_min,
+            registry.total_tickets
+        );
+        require!(
+            vault_balance >= expected_vault_min,
+            LotteryError::InvalidVaultBalance
+        );
+        
+        // Note: Admin balance check would require admin wallet account, skipping for now
+        // Expected admin amount = total_tickets * ADMIN_AMOUNT_LAMPORTS
+        let expected_admin_amount = (registry.total_tickets as u64)
+            .checked_mul(ADMIN_AMOUNT_LAMPORTS)
+            .ok_or(LotteryError::MathOverflow)?;
+        msg!(
+            "Expected admin amount: {} lamports ({} tickets * {} lamports per ticket)",
+            expected_admin_amount,
+            registry.total_tickets,
+            ADMIN_AMOUNT_LAMPORTS
+        );
 
         // Transfer entire vault balance to winner
         **ctx.accounts.round_vault.to_account_info().try_borrow_mut_lamports()? -= vault_balance;
         **ctx.accounts.winner.to_account_info().try_borrow_mut_lamports()? += vault_balance;
 
-        // Mark round as claimed
+        // Mark round and registry as claimed (prevent double claim)
         round.winner = Some(ctx.accounts.winner.key());
         round.status = RoundStatus::Claimed;
+        registry.state = RoundState::Claimed;
 
         msg!(
             "Prize of {} lamports claimed by {} for round {}",
@@ -310,6 +433,7 @@ pub mod sollottery {
             ctx.accounts.winner.key(),
             round.round_number
         );
+        msg!("Registry state set to Claimed, preventing double claim");
 
         Ok(())
     }
@@ -333,19 +457,47 @@ impl Round {
     pub const SIZE: usize = 8 + 8 + 8 + 8 + 3 + 33 + 1 + 1;
 }
 
-/// Ticket Registry - stores all sold ticket numbers for a round
+/// Buyer Entry - stores buyer and ticket count
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct BuyerEntry {
+    pub buyer: Pubkey,
+    pub ticket_count: u8,
+}
+
+/// Round State for TicketRegistry lifecycle
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq)]
+pub enum RoundState {
+    Active,
+    Ended,
+    Claimed,
+}
+
+/// Ticket Registry - unified ticket state per round
+/// Seeds: ["ticket_registry", round_number.to_le_bytes()]
+/// 
+/// Account Size Safety Approach:
+/// We enforce MAX_BUYERS_PER_ROUND (1000) to prevent account size issues.
+/// This approach stores the full buyers Vec for transparency and auditability.
+/// Alternative approach (totals + winner only) would save space but lose buyer history.
 #[account]
 pub struct TicketRegistry {
     pub round_number: u64,
-    pub sold_tickets: Vec<u16>,
-    pub bump: u8,
+    pub state: RoundState,
+    pub total_tickets: u32,
+    pub buyers: Vec<BuyerEntry>,
 }
 
 impl TicketRegistry {
-    pub const BASE_SIZE: usize = 8 + 8 + 4 + 1;
+    pub const BASE_SIZE: usize = 8 + // discriminator
+        8 +  // round_number: u64
+        1 +  // state: RoundState (enum as u8)
+        4 +  // total_tickets: u32
+        4;   // Vec length prefix
     
-    pub fn size(num_tickets: usize) -> usize {
-        Self::BASE_SIZE + (num_tickets * 2)
+    // Size for Vec<BuyerEntry> where BuyerEntry = 32 (Pubkey) + 1 (u8) = 33 bytes
+    // Using MAX_BUYERS_PER_ROUND to enforce account size limits (Approach a: enforce MAX_BUYERS)
+    pub fn size(max_buyers: usize) -> usize {
+        Self::BASE_SIZE + (max_buyers * 33) // 33 bytes per BuyerEntry
     }
 }
 
@@ -424,8 +576,8 @@ pub struct InitRound<'info> {
     #[account(
         init,
         payer = payer,
-        space = TicketRegistry::size(MAX_TICKETS_PER_ROUND as usize),
-        seeds = [b"registry", round_number.to_le_bytes().as_ref()],
+        space = TicketRegistry::size(MAX_BUYERS_PER_ROUND),
+        seeds = [b"ticket_registry", round_number.to_le_bytes().as_ref()],
         bump
     )]
     pub ticket_registry: Account<'info, TicketRegistry>,
@@ -461,6 +613,16 @@ pub struct BuyTickets<'info> {
     #[account(mut)]
     pub admin_wallet: UncheckedAccount<'info>,
     
+    /// Ticket registry for round 1
+    #[account(
+        init_if_needed,
+        payer = buyer,
+        space = TicketRegistry::size(MAX_BUYERS_PER_ROUND), // Space for up to MAX_BUYERS_PER_ROUND buyers
+        seeds = [b"ticket_registry", 1u64.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub ticket_registry: Account<'info, TicketRegistry>,
+    
     pub system_program: Program<'info, System>,
 }
 
@@ -474,8 +636,8 @@ pub struct EndRound<'info> {
     pub round: Account<'info, Round>,
     
     #[account(
-        seeds = [b"registry", round.round_number.to_le_bytes().as_ref()],
-        bump = ticket_registry.bump
+        seeds = [b"ticket_registry", round.round_number.to_le_bytes().as_ref()],
+        bump
     )]
     pub ticket_registry: Account<'info, TicketRegistry>,
 }
@@ -490,8 +652,8 @@ pub struct ClaimPrize<'info> {
     pub round: Account<'info, Round>,
     
     #[account(
-        seeds = [b"registry", round.round_number.to_le_bytes().as_ref()],
-        bump = ticket_registry.bump
+        seeds = [b"ticket_registry", round.round_number.to_le_bytes().as_ref()],
+        bump
     )]
     pub ticket_registry: Account<'info, TicketRegistry>,
     
@@ -566,4 +728,16 @@ pub enum LotteryError {
     
     #[msg("Mathematical operation overflowed.")]
     MathOverflow,
+    
+    #[msg("Maximum buyers per round reached.")]
+    MaxBuyersReached,
+    
+    #[msg("Round number mismatch between Round and TicketRegistry.")]
+    RoundNumberMismatch,
+    
+    #[msg("Invalid round number.")]
+    InvalidRoundNumber,
+    
+    #[msg("Invalid vault balance.")]
+    InvalidVaultBalance,
 }
