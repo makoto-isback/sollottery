@@ -1,0 +1,5 @@
+{
+  "name": "SOL Lottery",
+  "description": "A high-stakes, minimal Solana lottery platform with 1,000 blocks and real-time on-chain updates.",
+  "requestFramePermissions": []
+}

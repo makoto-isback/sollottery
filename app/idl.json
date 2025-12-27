@@ -1,0 +1,363 @@
+{
+  "version": "0.1.0",
+  "name": "sollottery",
+  "address": "EuLcEdX49Neyk7jhV4FQS9MmP7qpmN5Hw2dAKv1TtmtV",
+  "metadata": {
+    "name": "sollottery",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "activateUser",
+      "docs": ["Activate user wallet - one-time 0.01 SOL fee"],
+      "accounts": [
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "userProfile",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "adminWallet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initRound",
+      "docs": ["Initialize a new round with its vault"],
+      "accounts": [
+        {
+          "name": "round",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "roundVault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "roundNumber",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "buyTickets",
+      "docs": ["Buy tickets - SCALABLE MODEL"],
+      "accounts": [
+        {
+          "name": "buyer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "currentRound",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "ticketPosition",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "currentVault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "adminWallet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "roundNumber",
+          "type": "u64"
+        },
+        {
+          "name": "ticketCount",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "finalizeRound",
+      "docs": ["Finalize round - permissionless round finalization"],
+      "accounts": [
+        {
+          "name": "round",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claimPrize",
+      "docs": ["Claim prize using TicketPosition as proof"],
+      "accounts": [
+        {
+          "name": "round",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "ticketPosition",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "roundVault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "nextRound",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "nextVault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "winner",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Round",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "roundNumber",
+            "type": "u64"
+          },
+          {
+            "name": "startTimestamp",
+            "type": "i64"
+          },
+          {
+            "name": "endTimestamp",
+            "type": "i64"
+          },
+          {
+            "name": "totalTickets",
+            "type": "u64"
+          },
+          {
+            "name": "winningIndex",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": "RoundStatus"
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TicketPosition",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "round",
+            "type": "publicKey"
+          },
+          {
+            "name": "buyer",
+            "type": "publicKey"
+          },
+          {
+            "name": "startIndex",
+            "type": "u64"
+          },
+          {
+            "name": "count",
+            "type": "u32"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserProfile",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "publicKey"
+          },
+          {
+            "name": "activated",
+            "type": "bool"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "RoundStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Ended"
+          },
+          {
+            "name": "Claimed"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidTicketCount",
+      "msg": "Invalid ticket count. Must be between 1 and 10."
+    },
+    {
+      "code": 6001,
+      "name": "RoundNotActive",
+      "msg": "Round is not active."
+    },
+    {
+      "code": 6002,
+      "name": "RoundExpired",
+      "msg": "Round has expired."
+    },
+    {
+      "code": 6003,
+      "name": "NoTicketsSold",
+      "msg": "No tickets were sold in this round."
+    },
+    {
+      "code": 6004,
+      "name": "NotWinner",
+      "msg": "You are not the winner of this round."
+    },
+    {
+      "code": 6005,
+      "name": "NoPrize",
+      "msg": "No prize available to claim."
+    },
+    {
+      "code": 6006,
+      "name": "AlreadyActivated",
+      "msg": "User is already activated."
+    },
+    {
+      "code": 6007,
+      "name": "InvalidAdminWallet",
+      "msg": "Invalid admin wallet."
+    },
+    {
+      "code": 6008,
+      "name": "MaxTicketsReached",
+      "msg": "Maximum tickets per round reached."
+    },
+    {
+      "code": 6009,
+      "name": "MaxBuyersReached",
+      "msg": "Maximum buyers per round reached."
+    },
+    {
+      "code": 6010,
+      "name": "RoundNumberMismatch",
+      "msg": "Round number mismatch between Round and TicketRegistry."
+    },
+    {
+      "code": 6011,
+      "name": "InvalidRoundNumber",
+      "msg": "Invalid round number."
+    },
+    {
+      "code": 6012,
+      "name": "InvalidVaultBalance",
+      "msg": "Invalid vault balance."
+    },
+    {
+      "code": 6013,
+      "name": "InvalidWinner",
+      "msg": "Invalid winner account."
+    },
+    {
+      "code": 6014,
+      "name": "MathOverflow",
+      "msg": "Mathematical operation overflowed."
+    }
+  ]
+}
+
