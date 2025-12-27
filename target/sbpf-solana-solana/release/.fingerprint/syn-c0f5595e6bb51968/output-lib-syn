@@ -1,2 +1,0 @@
-Error: Function _ZN3syn4item7parsing67_$LT$impl$u20$syn..parse..Parse$u20$for$u20$syn..item..ImplItem$GT$5parse17hfecbe0dd2bcfd5e8E Stack offset of 4256 exceeded max offset of 4096 by 160 bytes, please minimize large stack variables. Estimated function frame size: 4352 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
-
