@@ -1,0 +1,20 @@
+Error: Function _ZN106_$LT$core..iter..adapters..GenericShunt$LT$I$C$R$GT$$u20$as$u20$core..iter..traits..iterator..Iterator$GT$4next17haca45b0ff345375bE Stack offset of 20024 exceeded max offset of 4096 by 15928 bytes, please minimize large stack variables. Estimated function frame size: 20096 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+
+Error: Function _ZN106_$LT$core..iter..adapters..GenericShunt$LT$I$C$R$GT$$u20$as$u20$core..iter..traits..iterator..Iterator$GT$4next17hdae96017f406ae59E Stack offset of 4360 exceeded max offset of 4096 by 264 bytes, please minimize large stack variables. Estimated function frame size: 4544 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+
+Error: Function _ZN10anchor_syn7codegen8accounts11constraints9linearize17hb66066195138f4d4E Stack offset of 18656 exceeded max offset of 4096 by 14560 bytes, please minimize large stack variables. Estimated function frame size: 18944 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+
+Error: Function _ZN10anchor_syn7codegen8accounts8generics17h246fe3d525fce9bdE Stack offset of 4320 exceeded max offset of 4096 by 224 bytes, please minimize large stack variables. Estimated function frame size: 4544 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+
+Error: Function _ZN10anchor_syn6parser8accounts11constraints5parse17h221f144d12dc4d04E Stack offset of 20792 exceeded max offset of 4096 by 16696 bytes, please minimize large stack variables. Estimated function frame size: 26496 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+
+Error: Function _ZN10anchor_syn6parser8accounts11constraints22ConstraintGroupBuilder5build17h30e2f9b7945844f0E Stack offset of 8448 exceeded max offset of 4096 by 4352 bytes, please minimize large stack variables. Estimated function frame size: 28224 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+
+Error: Function _ZN10anchor_syn6parser8accounts11constraints22ConstraintGroupBuilder5build28_$u7b$$u7b$closure$u7d$$u7d$17haa2ebf0b64d0f1d7E Stack offset of 6136 exceeded max offset of 4096 by 2040 bytes, please minimize large stack variables. Estimated function frame size: 6208 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+
+Error: Function _ZN10anchor_syn6parser8accounts11constraints22ConstraintGroupBuilder3add17h14bd3f17eebb3558E Stack offset of 9024 exceeded max offset of 4096 by 4928 bytes, please minimize large stack variables. Estimated function frame size: 9088 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+
+Error: Function _ZN10anchor_syn6parser8accounts5parse17h8f2eabd49a4cdac9E Stack offset of 23064 exceeded max offset of 4096 by 18968 bytes, please minimize large stack variables. Estimated function frame size: 23296 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+
+Error: Function _ZN10anchor_syn6parser8accounts19parse_account_field17h684846a2cbf68dd8E Stack offset of 29712 exceeded max offset of 4096 by 25616 bytes, please minimize large stack variables. Estimated function frame size: 29824 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+

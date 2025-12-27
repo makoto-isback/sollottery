@@ -6,7 +6,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-sollottery = "CpEVMvSsqTjx4Ajo4J7tbVSaqwR7nR5fwGFqMLAQ1ndr"
+sollottery = "EuLcEdX49Neyk7jhV4FQS9MmP7qpmN5Hw2dAKv1TtmtV"
+
+[build]
+idl = "target/idl"
 
 [registry]
 url = "https://api.apr.dev"
